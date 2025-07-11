@@ -11,3 +11,6 @@ message-channel = "0.0.1"
 notify = "8.0.0"
 thiserror = "2.0.12"
 tracing = "0.1.40"
+
+[dev-dependencies]
+test-log = { version = "0.2.16", features = ["trace", "log", "color"] }

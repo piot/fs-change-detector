@@ -3,12 +3,13 @@
  * Licensed under the MIT License. See LICENSE in the project root for license information.
  */
 use message_channel::{Channel, Receiver};
-use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher};
+use notify::{Config, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
+use notify::event::ModifyKind;
 use thiserror::Error;
 use tracing::{debug, error};
-
+use notify::{Event, Result as NotifyResult};
 #[derive(Debug)]
 pub enum ChangeMessage {
     SomeKindOfChange,
@@ -62,6 +63,8 @@ impl FileWatcher {
     ///
     pub fn new(watch_path: &Path) -> Result<Self, FileWatcherError> {
         let (watcher, receiver) = start_watch(watch_path)?;
+        while let Ok(_found) = receiver.recv() {
+        }
         Ok(Self { receiver, watcher })
     }
 
@@ -91,19 +94,27 @@ pub fn start_watch(
 
     let owned_watch_path = watch_path.to_path_buf();
 
-    let mut watcher = notify::recommended_watcher(move |res| match res {
-        Ok(_event) => {
-            let now = Instant::now();
-            if now.duration_since(last_event) >= debounce_duration {
-                if let Err(e) = sender.send(ChangeMessage::SomeKindOfChange) {
-                    error!(
+    let mut watcher = notify::recommended_watcher(move |res: NotifyResult<Event> | match res {
+        Ok(event) if matches!(event.kind,
+            EventKind::Modify(ModifyKind::Data(_))
+          | EventKind::Modify(ModifyKind::Any)
+          ) =>
+            {
+                let now = Instant::now();
+                if now.duration_since(last_event) >= debounce_duration {
+                    if let Err(e) = sender.send(ChangeMessage::SomeKindOfChange) {
+                        error!(
                         error = ?e,
                         "FileWatcher internal channel send error: receiver likely dropped"
                     );
+                    }
+                    last_event = now;
                 }
-                last_event = now;
             }
+        Ok(_) => {
+            // ignore metadata, attrib, open, etc.
         }
+
         Err(e) => {
             error!(
                 error = ?e,

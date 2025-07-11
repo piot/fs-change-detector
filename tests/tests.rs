@@ -6,7 +6,7 @@ fn test() {
 
     let file_watcher = FileWatcher::new("./".as_ref()).unwrap();
 
-    for _ in 0..10 {
+    for _ in 0..15 {
         std::thread::sleep(std::time::Duration::from_millis(500));
         if file_watcher.has_changed() {
             warn!("fs has changed!!");
